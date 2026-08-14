@@ -1,0 +1,81 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch: {}
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-24.04
+            asset: libLinkAttacher-linux-x86_64.so
+          - os: ubuntu-24.04-arm
+            asset: libLinkAttacher-linux-arm64.so
+          - os: macos-14
+            asset: libLinkAttacher-macos-arm64.dylib
+          - os: macos-13
+            asset: libLinkAttacher-macos-x86_64.dylib
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install gz-harmonic (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y lsb-release wget gnupg
+          sudo wget https://packages.osrfoundation.org/gazebo.gpg -O /usr/share/keyrings/pkgs-osrf-archive-keyring.gpg
+          echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/pkgs-osrf-archive-keyring.gpg] http://packages.osrfoundation.org/gazebo/ubuntu-stable $(lsb_release -cs) main" | sudo tee /etc/apt/sources.list.d/gazebo-stable.list > /dev/null
+          sudo apt-get update
+          sudo apt-get install -y gz-harmonic
+
+      - name: Install gz-harmonic (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          brew tap osrf/simulation
+          brew install gz-harmonic
+
+      - name: Configure
+        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build
+        run: cmake --build build --config Release
+
+      - name: Locate built library
+        id: locate
+        shell: bash
+        run: |
+          lib=$(find build -maxdepth 1 -name "libLinkAttacher.so" -o -maxdepth 1 -name "libLinkAttacher.dylib")
+          if [ -z "$lib" ]; then
+            echo "Built library not found under build/" >&2
+            exit 1
+          fi
+          echo "path=$lib" >> "$GITHUB_OUTPUT"
+
+      - name: Rename for release asset
+        shell: bash
+        run: cp "${{ steps.locate.outputs.path }}" "${{ matrix.asset }}"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.asset }}
+          path: ${{ matrix.asset }}
+
+  release:
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: true
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: artifacts/*

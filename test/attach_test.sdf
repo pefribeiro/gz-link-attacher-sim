@@ -1,0 +1,30 @@
+<?xml version="1.0"?>
+<sdf version="1.9">
+  <world name="link_attacher_test">
+    <physics name="1ms" type="ignored">
+      <max_step_size>0.001</max_step_size>
+      <real_time_factor>0</real_time_factor>
+    </physics>
+    <plugin filename="gz-sim-physics-system" name="gz::sim::systems::Physics"></plugin>
+    <plugin filename="gz-sim-scene-broadcaster-system" name="gz::sim::systems::SceneBroadcaster"></plugin>
+    <plugin filename="LinkAttacher" name="gz_link_attacher_sim::LinkAttacher"></plugin>
+
+    <model name="anchor">
+      <static>true</static>
+      <pose>0 0 0.5 0 0 0</pose>
+      <link name="anchor_link">
+        <collision name="c"><geometry><box><size>1 1 1</size></box></geometry></collision>
+        <visual name="v"><geometry><box><size>1 1 1</size></box></geometry></visual>
+      </link>
+    </model>
+
+    <model name="floater">
+      <pose>3 0 5 0 0 0</pose>
+      <link name="floater_link">
+        <inertial><mass>1</mass></inertial>
+        <collision name="c"><geometry><box><size>0.2 0.2 0.2</size></box></geometry></collision>
+        <visual name="v"><geometry><box><size>0.2 0.2 0.2</size></box></geometry></visual>
+      </link>
+    </model>
+  </world>
+</sdf>

@@ -145,7 +145,7 @@ And `gz_link_attacher_sim_vendor/package.xml`:
          ros_gz_sim's gz_sim.launch.py scans every installed package for this export to build
          GZ_SIM_SYSTEM_PLUGIN_PATH automatically. -->
     <gazebo_ros plugin_path="${prefix}/../../lib/gz_link_attacher_sim_vendor"/>
-    <!-- Not a standard ros_gz_sim export -- lets vscode-gz-bridge's gz-bridge-remote extension
+    <!-- Not a standard ros_gz_sim export: lets vscode-gz-bridge's gz-bridge-remote extension
          discover which release this workspace uses, so a natively-running Gazebo Sim on a
          different machine (e.g. a Mac host) can fetch the matching macOS/other-arch asset
          automatically. repo/tag must match CMakeLists.txt above. {platform}/{arch}/{ext} are

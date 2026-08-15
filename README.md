@@ -76,3 +76,100 @@ Tagged releases build and attach `.so`/`.dylib` binaries for Linux (x86_64, arm6
 (arm64, x86_64) via GitHub Actions -- see the [Releases](../../releases) page. Prebuilt binaries
 are tied to whatever `gz-sim8` ABI they were built against; if you're actively developing against a
 patched/custom Gazebo build, building from source (above) is more reliable than a release binary.
+
+## Using this in a plain ROS2 workspace
+
+If Gazebo and ROS2 run on the same machine (no [vscode-gz-bridge](https://github.com/pefribeiro/vscode-gz-bridge)
+involved), the idiomatic way to make this plugin discoverable isn't to check a binary into your
+workspace or hardcode a path in SDF -- it's a small **vendor package**, the same pattern this
+project's own ROS2 distro already uses for `gz-sim8`, `gz-transport13`, etc. (ament packages whose
+`CMakeLists.txt` fetches something built elsewhere rather than committing it to git). This also
+makes the plugin automatically discoverable by [vscode-gz-bridge](https://github.com/pefribeiro/vscode-gz-bridge)
+if you're using it, via the `<gz_native_plugin_release>` export documented below -- no separate
+configuration needed either way.
+
+Create `gz_link_attacher_sim_vendor/CMakeLists.txt`:
+
+```cmake
+cmake_minimum_required(VERSION 3.8)
+project(gz_link_attacher_sim_vendor)
+
+find_package(ament_cmake REQUIRED)
+
+set(GZ_LINK_ATTACHER_SIM_REPO "pefribeiro/gz-link-attacher-sim")
+set(GZ_LINK_ATTACHER_SIM_TAG "v0.1.0")  # pin to a specific tag, not "latest" -- avoids silently
+                                          # drifting to a build against a different gz-sim8 ABI
+
+if(CMAKE_SYSTEM_PROCESSOR STREQUAL "aarch64" OR CMAKE_SYSTEM_PROCESSOR STREQUAL "arm64")
+  set(_arch "arm64")
+elseif(CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64" OR CMAKE_SYSTEM_PROCESSOR STREQUAL "amd64")
+  set(_arch "x86_64")
+else()
+  message(FATAL_ERROR "unsupported CMAKE_SYSTEM_PROCESSOR '${CMAKE_SYSTEM_PROCESSOR}'")
+endif()
+
+set(_asset "libLinkAttacher-linux-${_arch}.so")
+set(_url "https://github.com/${GZ_LINK_ATTACHER_SIM_REPO}/releases/download/${GZ_LINK_ATTACHER_SIM_TAG}/${_asset}")
+set(_downloaded "${CMAKE_CURRENT_BINARY_DIR}/${_asset}")
+
+if(NOT EXISTS "${_downloaded}")
+  file(DOWNLOAD "${_url}" "${_downloaded}" STATUS _status TLS_VERIFY ON)
+  list(GET _status 0 _code)
+  if(NOT _code EQUAL 0)
+    file(REMOVE "${_downloaded}")
+    message(FATAL_ERROR "failed to download ${_url}")
+  endif()
+endif()
+
+install(FILES "${_downloaded}" DESTINATION lib/${PROJECT_NAME} RENAME libLinkAttacher.so)
+ament_package()
+```
+
+And `gz_link_attacher_sim_vendor/package.xml`:
+
+```xml
+<?xml version="1.0"?>
+<?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
+<package format="3">
+  <name>gz_link_attacher_sim_vendor</name>
+  <version>0.1.0</version>
+  <description>Vendor package for gz-link-attacher-sim's LinkAttacher plugin.</description>
+  <maintainer email="you@example.com">Your Name</maintainer>
+  <license>Apache License 2.0</license>
+
+  <buildtool_depend>ament_cmake</buildtool_depend>
+
+  <export>
+    <build_type>ament_cmake</build_type>
+    <!-- Standard ros_gz_sim/gazebo_ros_pkgs convention: GazeboRosPaths.get_paths() in
+         ros_gz_sim's gz_sim.launch.py scans every installed package for this export to build
+         GZ_SIM_SYSTEM_PLUGIN_PATH automatically. -->
+    <gazebo_ros plugin_path="${prefix}/../../lib/gz_link_attacher_sim_vendor"/>
+    <!-- Not a standard ros_gz_sim export -- lets vscode-gz-bridge's gz-bridge-remote extension
+         discover which release this workspace uses, so a natively-running Gazebo Sim on a
+         different machine (e.g. a Mac host) can fetch the matching macOS/other-arch asset
+         automatically. repo/tag must match CMakeLists.txt above. {platform}/{arch}/{ext} are
+         substituted with macos|linux, arm64|x86_64, and dylib|so respectively. -->
+    <gz_native_plugin_release
+      repo="pefribeiro/gz-link-attacher-sim"
+      tag="v0.1.0"
+      asset_pattern="libLinkAttacher-{platform}-{arch}.{ext}"/>
+  </export>
+</package>
+```
+
+`colcon build` fetches the right Linux binary at build time (once, not at runtime) -- nothing is
+committed to git. Reference the plugin by bare name in your world's SDF:
+
+```xml
+<plugin filename="LinkAttacher" name="gz_link_attacher_sim::LinkAttacher"></plugin>
+```
+
+and launch Gazebo the normal way, via `ros_gz_sim`'s `gz_sim.launch.py` -- `GazeboRosPaths.get_paths()`
+picks up the `plugin_path` export automatically, same as it already does for every other
+Gazebo-plugin-shipping ROS2 package.
+
+For one-off/local testing where a whole vendor package isn't worth setting up, you can skip all of
+this and reference a downloaded binary by its full path directly instead:
+`<plugin filename="/full/path/to/libLinkAttacher.so" ...>` -- works, just isn't portable to a
+different machine or checkout location.

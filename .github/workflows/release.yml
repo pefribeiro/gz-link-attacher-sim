@@ -18,7 +18,7 @@ jobs:
             asset: libLinkAttacher-linux-arm64.so
           - os: macos-14
             asset: libLinkAttacher-macos-arm64.dylib
-          - os: macos-13
+          - os: macos-15-intel
             asset: libLinkAttacher-macos-x86_64.dylib
     runs-on: ${{ matrix.os }}
     steps:

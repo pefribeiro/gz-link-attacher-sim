@@ -42,7 +42,17 @@ jobs:
           brew install gz-harmonic
 
       - name: Configure
-        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+        shell: bash
+        run: |
+          # gz-sim8's own CMake config unconditionally requires Qt5 (via gz-gui8), even though
+          # this plugin has no GUI dependency at all -- Homebrew's qt@5 is keg-only (deprecated,
+          # not symlinked into the default prefix), so CMake can't find its Qt5Config.cmake
+          # without this hint on macOS. No-op on Linux (brew isn't present, condition short-circuits).
+          extra_prefix=""
+          if [ "$RUNNER_OS" = "macOS" ]; then
+            extra_prefix="$(brew --prefix qt@5)"
+          fi
+          cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH="$extra_prefix"
 
       - name: Build
         run: cmake --build build --config Release

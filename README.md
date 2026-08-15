@@ -57,6 +57,15 @@ Requires `gz-sim8`, `gz-transport13`, `gz-msgs10`, `gz-plugin2` development pack
 `gz-harmonic` via [Homebrew](https://formulae.brew.sh/formula/gz-harmonic) on macOS, or via the
 [OSRF apt repository](https://gazebosim.org/docs/harmonic/install_ubuntu) on Ubuntu.
 
+**On macOS**, `gz-sim8`'s own CMake config unconditionally requires Qt5 (via `gz-gui8`), even
+though this plugin has no GUI dependency of its own -- Homebrew's `qt@5` is keg-only (deprecated,
+not symlinked into the default prefix), so plain `cmake -S . -B build` fails with `Could not find a
+package configuration file provided by "Qt5"` unless you point `CMAKE_PREFIX_PATH` at it:
+
+```
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH="$(brew --prefix qt@5)"
+```
+
 Point Gazebo at the resulting `libLinkAttacher.so`/`.dylib` via `GZ_SIM_SYSTEM_PLUGIN_PATH`, and
 add `<plugin filename="LinkAttacher" name="gz_link_attacher_sim::LinkAttacher"></plugin>` to your
 world's SDF.
